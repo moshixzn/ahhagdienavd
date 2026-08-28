@@ -1,0 +1,107 @@
+--[[
+	WARNING: Heads up! This script has not been verified by ScriptBlox. Use at your own risk!
+]]
+-- auto fire proximityprompt v3
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ProximityPromptController"
+screenGui.ResetOnSpawn = false
+
+local button = Instance.new("TextButton")
+button.Size = UDim2.new(0, 200, 0, 50)
+button.Position = UDim2.new(0.5, -100, 0.5, -25)
+button.Text = "Start"
+button.Font = Enum.Font.SourceSansBold
+button.TextSize = 20
+button.BackgroundColor3 = Color3.new(0.3, 0.7, 0.3)
+button.BorderSizePixel = 0
+
+button.Parent = screenGui
+screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+
+local dragging = false
+local dragInput, mousePos, framePos
+
+local function update(input)
+    local delta = input.Position - mousePos
+    button.Position = UDim2.new(framePos.X.Scale, framePos.X.Offset + delta.X, framePos.Y.Scale, framePos.Y.Offset + delta.Y)
+end
+
+button.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        mousePos = input.Position
+        framePos = button.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+button.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+game:GetService("UserInputService").InputChanged:Connect(function(input)
+    if dragging and input == dragInput then
+        update(input)
+    end
+end)
+
+local function triggerNearbyPrompts()
+    local player = game.Players.LocalPlayer
+    local character = player.Character or player.CharacterAdded:Wait()
+    local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+    local range = 50
+
+    for _, descendant in ipairs(workspace:GetDescendants()) do
+        if descendant:IsA("ProximityPrompt") then
+            local distance = (descendant.Parent.Position - humanoidRootPart.Position).magnitude
+            if distance <= range then
+                if fireproximityprompt then
+                    fireproximityprompt(descendant)
+                else
+                    warn("fireproximityprompt function is not available.")
+                end
+            end
+        end
+    end
+end
+
+local isTriggering = false
+local triggerLoop
+
+button.Activated:Connect(function()
+    if isTriggering then
+        button.Text = "Start"
+        button.BackgroundColor3 = Color3.new(0.3, 0.7, 0.3)
+        isTriggering = false
+        if triggerLoop then
+            triggerLoop:Cancel()
+            triggerLoop = nil
+        end
+    else
+        button.Text = "Stop"
+        button.BackgroundColor3 = Color3.new(0.7, 0.3, 0.3)
+        isTriggering = true
+        triggerLoop = game:GetService("RunService").Heartbeat:Connect(function()
+            if isTriggering then
+                triggerNearbyPrompts()
+            else
+                triggerLoop:Disconnect()
+                triggerLoop = nil
+            end
+        end)
+    end
+end)
+
+
+for i,v in ipairs(game:GetService("Workspace"):GetDescendants()) do
+ if v.ClassName == "ProximityPrompt" then
+  v.HoldDuration = 0
+ end
+end
