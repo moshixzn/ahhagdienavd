@@ -3,7 +3,7 @@ local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
-local DISCORD = "https://discord.gg/XcqwDDm3j"
+local DISCORD = "https://discord.gg/ptTNATCdga"
 local ACCENT = Color3.fromRGB(108, 140, 255)
 local ACCENT2 = Color3.fromRGB(168, 116, 255)
 
@@ -259,7 +259,7 @@ local shards = {}
 for i = 1, 10 do
     local edge = math.random(5, 15)
     shards[i] = make("Frame", {
-        Name = "Shard",
+        Name = "Berri",
         Size = UDim2.fromOffset(edge, edge),
         Position = UDim2.fromScale(math.random() * 0.94, math.random() * 0.94),
         Rotation = math.random(0, 180),
@@ -345,7 +345,7 @@ local brand = make("TextLabel", {
     Size = UDim2.new(0, 260, 0, 24),
     BackgroundTransparency = 1,
     RichText = true,
-    Text = 'SHARD<font color="#A874FF">HUB</font>',
+    Text = 'BERRI<font color="#A874FF">HUB</font>',
     Font = Enum.Font.GothamBlack,
     TextSize = 23,
     TextColor3 = Color3.fromRGB(242, 245, 252),
@@ -539,7 +539,7 @@ local link = make("TextLabel", {
     Position = UDim2.new(0.5, 0, 0, 256),
     Size = UDim2.new(0, 340, 0, 16),
     BackgroundTransparency = 1,
-    Text = "discord.gg/XcqwDDm3j",
+    Text = "https://discord.gg/ptTNATCdga",
     Font = Enum.Font.GothamMedium,
     TextSize = 13,
     TextColor3 = Color3.fromRGB(108, 116, 138),
@@ -564,7 +564,7 @@ local footer = make("TextLabel", {
     Position = UDim2.new(0, 27, 0, 310),
     Size = UDim2.new(1, -150, 0, 16),
     BackgroundTransparency = 1,
-    Text = "Shard Hub \u{00B7} Steal an Egg",
+    Text = "Berri Hub \u{00B7} Steal an Egg",
     Font = Enum.Font.Gotham,
     TextSize = 12,
     TextColor3 = Color3.fromRGB(84, 91, 108),
