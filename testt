@@ -6,17 +6,13 @@ local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 local espEnabled = true
 
--- Detect if mobile
-local UserInputService = game:GetService("UserInputService")
 local isMobile = UserInputService:GetLastInputType() == Enum.UserInputType.Touch
 
--- Create main ESP GUI
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "ESP_GUI"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
--- Create toggle button
 local toggleButton = Instance.new("TextButton")
 toggleButton.Name = "ESP_Toggle"
 toggleButton.Size = UDim2.new(0, 120, 0, 50)
@@ -31,156 +27,184 @@ toggleButton.Font = Enum.Font.GothamBold
 toggleButton.Parent = screenGui
 toggleButton.ZIndex = 10
 
--- Make button larger for mobile
 if isMobile then
     toggleButton.Size = UDim2.new(0, 140, 0, 60)
     toggleButton.TextSize = 18
 end
 
--- Toggle function
 local function toggleESP()
     espEnabled = not espEnabled
-    if espEnabled then
-        toggleButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
-        toggleButton.Text = "ESP: ON"
-    else
-        toggleButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
-        toggleButton.Text = "ESP: OFF"
-    end
+    toggleButton.BackgroundColor3 = espEnabled and Color3.fromRGB(0, 200, 0) or Color3.fromRGB(200, 0, 0)
+    toggleButton.Text = espEnabled and "ESP: ON" or "ESP: OFF"
 end
 
--- Button click
-toggleButton.MouseButton1Click:Connect(function()
-    toggleESP()
-end)
+toggleButton.MouseButton1Click:Connect(toggleESP)
 
--- Keyboard toggle (E key for PC)
 if not isMobile then
     UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if gameProcessed then return end
-        if input.KeyCode == Enum.KeyCode.E then
-            toggleESP()
-        end
+        if input.KeyCode == Enum.KeyCode.E then toggleESP() end
     end)
 end
 
--- Function to create player ESP label
-local function createESPLabel(targetPlayer, isPlayer)
+local function createESPLabel(name, isBall)
     local label = Instance.new("TextLabel")
-    if isPlayer then
-        label.Name = targetPlayer.Name .. "_ESP"
-    else
-        label.Name = targetPlayer.Name .. "_BALL_ESP"
-    end
+    label.Name = name
     label.BackgroundTransparency = 0.3
-    label.BackgroundColor3 = isPlayer and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(100, 50, 0)
-    label.TextColor3 = isPlayer and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 165, 0)
+    label.BackgroundColor3 = isBall and Color3.fromRGB(100, 50, 0) or Color3.fromRGB(0, 0, 0)
+    label.TextColor3 = isBall and Color3.fromRGB(255, 165, 0) or Color3.fromRGB(0, 255, 0)
     label.TextSize = 14
     label.BorderSizePixel = 0
+    label.Visible = false
     label.Parent = screenGui
     return label
 end
 
--- Function to check if object is a dragon ball
-local function isDragonBall(object)
-    if not object then return false end
-    
-    -- Check common dragon ball naming patterns
-    local name = object.Name:lower()
-    if name:find("ball") or name:find("dragon") or name:find("star") then
-        return true
+local function isOrangish(color)
+    return color.R > 0.55 and color.G > 0.25 and color.G < 0.75 and color.B < 0.35
+end
+
+local function isRoundish(part)
+    local mesh = part:FindFirstChildOfClass("SpecialMesh")
+    if mesh then
+        if mesh.MeshType == Enum.MeshType.Sphere then return true end
+        if mesh.MeshType == Enum.MeshType.FileMesh then return true end
     end
-    
-    -- Check if it has a specific model structure
-    if object:FindFirstChild("Mesh") or object:FindFirstChild("SpecialMesh") then
-        -- Check size/color typical of dragon balls
-        if object.Size.Magnitude < 2 then
-            return true
-        end
+    local size = part.Size
+    local maxDim = math.max(size.X, size.Y, size.Z)
+    if maxDim == 0 then return false end
+    return (math.min(size.X, size.Y, size.Z) / maxDim) > 0.75
+end
+
+local function hasNPCAncestor(object)
+    local ancestor = object.Parent
+    while ancestor and ancestor ~= workspace do
+        if ancestor:FindFirstChildOfClass("Humanoid") then return true end
+        ancestor = ancestor.Parent
     end
-    
     return false
 end
 
--- Main ESP loop
-RunService.RenderStepped:Connect(function()
-    if not espEnabled then return end
-    
-    -- ESP for players
-    for _, targetPlayer in pairs(Players:GetPlayers()) do
-        if targetPlayer == player then continue end
-        
-        local character = targetPlayer.Character
-        if not character or not character:FindFirstChild("HumanoidRootPart") then continue end
-        
-        local rootPart = character.HumanoidRootPart
-        local humanoid = character:FindFirstChild("Humanoid")
-        
-        local screenPos, onScreen = camera:WorldToScreenPoint(rootPart.Position)
-        
-        if onScreen then
-            local distance = (player.Character.HumanoidRootPart.Position - rootPart.Position).Magnitude
-            local health = humanoid and humanoid.Health or 0
-            local maxHealth = humanoid and humanoid.MaxHealth or 100
-            
-            local label = screenGui:FindFirstChild(targetPlayer.Name .. "_ESP")
-            if not label then
-                label = createESPLabel(targetPlayer, true)
-            end
-            
-            label.Position = UDim2.new(0, screenPos.X, 0, screenPos.Y)
-            label.Size = UDim2.new(0, 150, 0, 60)
-            label.Text = string.format(
-                "%s\nHP: %.0f/%.0f\nDist: %.1f",
-                targetPlayer.Name,
-                health,
-                maxHealth,
-                distance
-            )
-            label.Visible = true
-        else
-            local label = screenGui:FindFirstChild(targetPlayer.Name .. "_ESP")
-            if label then
-                label.Visible = false
-            end
+local function isPlayerCharacterPart(object)
+    for _, p in pairs(Players:GetPlayers()) do
+        if p.Character and object:IsDescendantOf(p.Character) then return true end
+    end
+    return false
+end
+
+local function isDragonBall(object)
+    if not object:IsA("BasePart") then return false end
+    if object.Size.Magnitude > 4 then return false end
+    if isPlayerCharacterPart(object) then return false end
+    if hasNPCAncestor(object) then return false end
+
+    local name = object.Name:lower()
+    if name == "dragonball" or name == "dragon_ball" or name:find("dragonball") then return true end
+    if name == "item" or name:find("^item") then
+        return isRoundish(object) and isOrangish(object.Color)
+    end
+    return isRoundish(object) and isOrangish(object.Color)
+end
+
+-- Cache: table of validated dragon ball parts, rebuilt every 2 seconds
+local cachedBalls = {}
+local lastBallScan = 0
+local BALL_SCAN_INTERVAL = 2
+
+local function rebuildBallCache()
+    cachedBalls = {}
+    for _, object in pairs(workspace:GetDescendants()) do
+        if isDragonBall(object) then
+            table.insert(cachedBalls, object)
         end
     end
-    
-    -- ESP for dragon balls
-    local workspace = game:GetService("Workspace")
-    for _, object in pairs(workspace:GetDescendants()) do
-        if isDragonBall(object) and object:IsA("BasePart") then
-            local screenPos, onScreen = camera:WorldToScreenPoint(object.Position)
-            
-            if onScreen then
-                local distance = (player.Character.HumanoidRootPart.Position - object.Position).Magnitude
-                
-                local label = screenGui:FindFirstChild(object.Name .. "_BALL_ESP")
-                if not label then
-                    label = createESPLabel(object, false)
-                end
-                
-                label.Position = UDim2.new(0, screenPos.X, 0, screenPos.Y)
-                label.Size = UDim2.new(0, 120, 0, 45)
-                label.Text = string.format(
-                    "DRAGON BALL\nDist: %.1f",
-                    distance
-                )
-                label.Visible = true
-            else
-                local label = screenGui:FindFirstChild(object.Name .. "_BALL_ESP")
-                if label then
-                    label.Visible = false
-                end
-            end
+end
+
+-- Listen for new descendants so cache stays warm without full rescans
+workspace.DescendantAdded:Connect(function(object)
+    if isDragonBall(object) then
+        table.insert(cachedBalls, object)
+    end
+end)
+
+workspace.DescendantRemoving:Connect(function(object)
+    for i, ball in ipairs(cachedBalls) do
+        if ball == object then
+            table.remove(cachedBalls, i)
+            break
         end
     end
 end)
 
--- Cleanup when player leaves
+-- Label pool keyed by instance
+local ballLabels = {}
+
+RunService.RenderStepped:Connect(function()
+    if not espEnabled then
+        -- Hide everything if ESP is off
+        for _, label in pairs(screenGui:GetChildren()) do
+            if label:IsA("TextLabel") then label.Visible = false end
+        end
+        return
+    end
+
+    local now = tick()
+    local myChar = player.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return end
+
+    -- Throttled full rescan as fallback
+    if now - lastBallScan > BALL_SCAN_INTERVAL then
+        lastBallScan = now
+        rebuildBallCache()
+    end
+
+    -- Player ESP
+    for _, targetPlayer in pairs(Players:GetPlayers()) do
+        if targetPlayer == player then continue end
+        local character = targetPlayer.Character
+        if not character then continue end
+        local rootPart = character:FindFirstChild("HumanoidRootPart")
+        if not rootPart then continue end
+        local humanoid = character:FindFirstChild("Humanoid")
+
+        local screenPos, onScreen = camera:WorldToScreenPoint(rootPart.Position)
+        local labelName = targetPlayer.Name .. "_ESP"
+        local label = screenGui:FindFirstChild(labelName) or createESPLabel(labelName, false)
+
+        if onScreen then
+            local distance = (myRoot.Position - rootPart.Position).Magnitude
+            local health = humanoid and humanoid.Health or 0
+            local maxHealth = humanoid and humanoid.MaxHealth or 100
+            label.Position = UDim2.new(0, screenPos.X, 0, screenPos.Y)
+            label.Size = UDim2.new(0, 150, 0, 60)
+            label.Text = string.format("%s\nHP: %.0f/%.0f\nDist: %.1f", targetPlayer.Name, health, maxHealth, distance)
+            label.Visible = true
+        else
+            label.Visible = false
+        end
+    end
+
+    -- Dragon Ball ESP — iterate cache only, no workspace scan this frame
+    for _, ball in ipairs(cachedBalls) do
+        if not ball or not ball.Parent then continue end
+        local screenPos, onScreen = camera:WorldToScreenPoint(ball.Position)
+        local labelName = ball.Name .. "_BALL_ESP"
+        local label = screenGui:FindFirstChild(labelName) or createESPLabel(labelName, true)
+
+        if onScreen then
+            local distance = (myRoot.Position - ball.Position).Magnitude
+            label.Position = UDim2.new(0, screenPos.X, 0, screenPos.Y)
+            label.Size = UDim2.new(0, 120, 0, 45)
+            label.Text = string.format("DRAGON BALL\nDist: %.1f", distance)
+            label.Visible = true
+        else
+            label.Visible = false
+        end
+    end
+end)
+
 Players.PlayerRemoving:Connect(function(leftPlayer)
     local label = screenGui:FindFirstChild(leftPlayer.Name .. "_ESP")
-    if label then
-        label:Destroy()
-    end
+    if label then label:Destroy() end
 end)
