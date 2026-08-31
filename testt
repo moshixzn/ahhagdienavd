@@ -1,0 +1,186 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+local espEnabled = true
+
+-- Detect if mobile
+local UserInputService = game:GetService("UserInputService")
+local isMobile = UserInputService:GetLastInputType() == Enum.UserInputType.Touch
+
+-- Create main ESP GUI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ESP_GUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- Create toggle button
+local toggleButton = Instance.new("TextButton")
+toggleButton.Name = "ESP_Toggle"
+toggleButton.Size = UDim2.new(0, 120, 0, 50)
+toggleButton.Position = UDim2.new(0, 10, 0, 10)
+toggleButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.TextSize = 16
+toggleButton.Text = "ESP: ON"
+toggleButton.BorderSizePixel = 2
+toggleButton.BorderColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.Font = Enum.Font.GothamBold
+toggleButton.Parent = screenGui
+toggleButton.ZIndex = 10
+
+-- Make button larger for mobile
+if isMobile then
+    toggleButton.Size = UDim2.new(0, 140, 0, 60)
+    toggleButton.TextSize = 18
+end
+
+-- Toggle function
+local function toggleESP()
+    espEnabled = not espEnabled
+    if espEnabled then
+        toggleButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+        toggleButton.Text = "ESP: ON"
+    else
+        toggleButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+        toggleButton.Text = "ESP: OFF"
+    end
+end
+
+-- Button click
+toggleButton.MouseButton1Click:Connect(function()
+    toggleESP()
+end)
+
+-- Keyboard toggle (E key for PC)
+if not isMobile then
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.KeyCode == Enum.KeyCode.E then
+            toggleESP()
+        end
+    end)
+end
+
+-- Function to create player ESP label
+local function createESPLabel(targetPlayer, isPlayer)
+    local label = Instance.new("TextLabel")
+    if isPlayer then
+        label.Name = targetPlayer.Name .. "_ESP"
+    else
+        label.Name = targetPlayer.Name .. "_BALL_ESP"
+    end
+    label.BackgroundTransparency = 0.3
+    label.BackgroundColor3 = isPlayer and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(100, 50, 0)
+    label.TextColor3 = isPlayer and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 165, 0)
+    label.TextSize = 14
+    label.BorderSizePixel = 0
+    label.Parent = screenGui
+    return label
+end
+
+-- Function to check if object is a dragon ball
+local function isDragonBall(object)
+    if not object then return false end
+    
+    -- Check common dragon ball naming patterns
+    local name = object.Name:lower()
+    if name:find("ball") or name:find("dragon") or name:find("star") then
+        return true
+    end
+    
+    -- Check if it has a specific model structure
+    if object:FindFirstChild("Mesh") or object:FindFirstChild("SpecialMesh") then
+        -- Check size/color typical of dragon balls
+        if object.Size.Magnitude < 2 then
+            return true
+        end
+    end
+    
+    return false
+end
+
+-- Main ESP loop
+RunService.RenderStepped:Connect(function()
+    if not espEnabled then return end
+    
+    -- ESP for players
+    for _, targetPlayer in pairs(Players:GetPlayers()) do
+        if targetPlayer == player then continue end
+        
+        local character = targetPlayer.Character
+        if not character or not character:FindFirstChild("HumanoidRootPart") then continue end
+        
+        local rootPart = character.HumanoidRootPart
+        local humanoid = character:FindFirstChild("Humanoid")
+        
+        local screenPos, onScreen = camera:WorldToScreenPoint(rootPart.Position)
+        
+        if onScreen then
+            local distance = (player.Character.HumanoidRootPart.Position - rootPart.Position).Magnitude
+            local health = humanoid and humanoid.Health or 0
+            local maxHealth = humanoid and humanoid.MaxHealth or 100
+            
+            local label = screenGui:FindFirstChild(targetPlayer.Name .. "_ESP")
+            if not label then
+                label = createESPLabel(targetPlayer, true)
+            end
+            
+            label.Position = UDim2.new(0, screenPos.X, 0, screenPos.Y)
+            label.Size = UDim2.new(0, 150, 0, 60)
+            label.Text = string.format(
+                "%s\nHP: %.0f/%.0f\nDist: %.1f",
+                targetPlayer.Name,
+                health,
+                maxHealth,
+                distance
+            )
+            label.Visible = true
+        else
+            local label = screenGui:FindFirstChild(targetPlayer.Name .. "_ESP")
+            if label then
+                label.Visible = false
+            end
+        end
+    end
+    
+    -- ESP for dragon balls
+    local workspace = game:GetService("Workspace")
+    for _, object in pairs(workspace:GetDescendants()) do
+        if isDragonBall(object) and object:IsA("BasePart") then
+            local screenPos, onScreen = camera:WorldToScreenPoint(object.Position)
+            
+            if onScreen then
+                local distance = (player.Character.HumanoidRootPart.Position - object.Position).Magnitude
+                
+                local label = screenGui:FindFirstChild(object.Name .. "_BALL_ESP")
+                if not label then
+                    label = createESPLabel(object, false)
+                end
+                
+                label.Position = UDim2.new(0, screenPos.X, 0, screenPos.Y)
+                label.Size = UDim2.new(0, 120, 0, 45)
+                label.Text = string.format(
+                    "DRAGON BALL\nDist: %.1f",
+                    distance
+                )
+                label.Visible = true
+            else
+                local label = screenGui:FindFirstChild(object.Name .. "_BALL_ESP")
+                if label then
+                    label.Visible = false
+                end
+            end
+        end
+    end
+end)
+
+-- Cleanup when player leaves
+Players.PlayerRemoving:Connect(function(leftPlayer)
+    local label = screenGui:FindFirstChild(leftPlayer.Name .. "_ESP")
+    if label then
+        label:Destroy()
+    end
+end)
